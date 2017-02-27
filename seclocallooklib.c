@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "securepriv_look.h"
+#include "securetypes.h"
 #include "seclocallooklib.h"
 
-void strtostruct(char *str, usersec_struct *outs)
+void strtostruct(char *str, struct usersec_struct *outs)
 {
 	int len=strlen(str);
 	char *word=malloc(len);
@@ -53,8 +53,9 @@ void strtostruct(char *str, usersec_struct *outs)
 	free(word);
 }
 
-int enum_localdb(char *uname, int uid, usersec_struct *outs)
+int enum_localdb(char *uname, int uid, struct usersec_struct **outs)
 {
+	*outs=0;
 
 	if ((uname==0)&&(uid==0))
 	{
@@ -66,8 +67,15 @@ int enum_localdb(char *uname, int uid, usersec_struct *outs)
 	if (f!=0)
 	{
 		char *line=malloc(LOCAL_DBLINEMAXSIZE);
-		usersec_struct *buf=malloc(sizeof(usersec_struct));
-		bool found=false;
+		struct usersec_struct *buf=malloc(sizeof(struct usersec_struct));
+
+		if ((buf==0)||(line==0))
+		{
+			fclose(f);
+			return (SECERR_OUTOFMEM);
+		}
+		
+		int found=0;
 		
 		while (!feof(f))
 		{
@@ -79,7 +87,7 @@ int enum_localdb(char *uname, int uid, usersec_struct *outs)
 				
 				if (strcmp(uname, buf->user_name)==0)
 				{
-					found=true;
+					found=1;
 				}
 
 			}
@@ -88,17 +96,18 @@ int enum_localdb(char *uname, int uid, usersec_struct *outs)
 
 				if (uid==buf->uid)
 				{
-					found=true;
+					found=1;
 				}
 
 			}
-
-			free(buf->user_name);
-
-			if (found)
+			
+			if (found==1)
 			{
-				copystruct(buf, outs);
 				break;
+			}
+			else
+			{
+				free(buf->user_name);
 			}
 
 		}
@@ -106,9 +115,14 @@ int enum_localdb(char *uname, int uid, usersec_struct *outs)
 		free(line);
 		fclose(f);
 
-		if (found)
+		if (found==1)
 		{
+			*outs=buf;
 			return (SECERR_SUCCESS);
+		}
+		else
+		{
+			free(buf);
 		}
 
 	}
@@ -117,49 +131,21 @@ int enum_localdb(char *uname, int uid, usersec_struct *outs)
 		return (SECERR_DBERROR);
 	}
 
+	if (uname!=0)
+	{
+		return (SECERR_NAMENOTFOUND);
+	}
+	else
+	{
+		return (SECERR_UIDNOTFOUND);
+	}
+
 	return (SECERR_UNKNOWNERROR);
 }
 
-int getsecprivname(char *uname, usersec_struct **outs)
+void priv_init()
 {
-
-	if (outs==0)
-	{
-		return (SECERR_NULLSTRUCTPTR);
-	}
-	else if (uname==0)
-	{
-		return (SECERR_EMPTYUSERNAME);
-	}
-
-	*outs=malloc(sizeof(usersec_struct));
-
-	if (outs==0)
-	{
-		return (SECERR_OUTOFMEM);
-	}
-
-	return (enum_localdb(uname, 0, *outs));
-}
-
-int getsecprivid(int uid, usersec_struct **outs)
-{
-	
-	if (outs==0)
-	{
-		return (SECERR_NULLSTRUCTPTR);
-	}
-	else if (uid==0)
-	{
-		return (SECERR_EMPTYUID);
-	}
-	
-	*outs=malloc(sizeof(usersec_struct));
-
-	if (outs==0)
-	{
-		return (SECERR_OUTOFMEM);
-	}
-
-	return (enum_localdb(0, uid, *outs));
+	printf("debug: seclocallooklib.so initialized\n");
+	enum_db=enum_localdb;
+	printf("enum_db: %d\n", enum_db);
 }
