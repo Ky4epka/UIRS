@@ -3,109 +3,146 @@
 #include <stdio.h>
 #include <dlfcn.h>
 
-int enum_priority_list(char *uname, int uid, struct usersec_struct **outs)
+bool enum_priority_list(const char *uname, const uid_t uid, struct sec_priv_usersec_struct **outs)
 {
 
-	if ((uname==0)&&(uid==0))
+	if ((uname==NULL)&&(uid==0))
 	{
-		return (SECERR_UNKNOWNERROR);
+		_ERRLOG("has returned 'SECERR_UNKNOWN_ERROR'", "")
+		sec_priv_set_last_error(SECERR_UNKNOWN_ERROR);
+		return (false);
 	}
 
 	FILE *f=fopen(CFG_FILE, "r+t");
 
-	if (f!=0)
+	if (f==NULL)
 	{
-		printf("debug: file '%s' opened\n", CFG_FILE);
-		char *libname=malloc(FILENAME_MAX);
-		void *lib=0;
-		getsecprivname_func byname=0;
-		getsecprivuid_func byuid=0;
-		int err=0;
+		_ERRLOG("has returned 'SECERR_CFG_READ_ERROR'", "")
+		sec_priv_set_last_error(SECERR_CFG_READ_ERROR);
+		return (false);
+	}
 
-		while (!feof(f))
+	_DEBUGLOG("'%s' opened ", CFG_FILE);
+
+	char *libname=malloc(FILENAME_MAX);
+
+	if (libname==NULL)
+	{
+		_ERRLOG("has returned 'SECERR_OUT_OF_MEM'", "")
+		sec_priv_set_last_error(SECERR_OUT_OF_MEM);
+		fclose(f);
+		return (false);
+	}
+
+	void *lib=NULL;
+	sec_priv_get_name_func byname=0;
+	sec_priv_get_uid_func byuid=0;
+	bool err_result=false;
+	char *err_string=NULL;
+
+	while (!feof(f))
+	{
+		fgets(libname,FILENAME_MAX,f);
+		
+		if (strlen(libname)>0)
 		{
-			fgets(libname,FILENAME_MAX,f);
-			
-			if (strlen(libname)>0)
+			libname[strlen(libname)-1]=0;
+		}
+
+		lib=dlopen(libname, RTLD_LAZY);
+
+		if ((!lib)||(strlen(libname)==0))
+		{
+			_ERRLOG("cannot open library '%s' - '%s'", libname, dlerror());
+			continue;
+		}
+
+		_DEBUGLOG("dlopened '%s'", libname);
+		sec_priv_init_func ifunc=dlsym(lib,CFG_INIT_FUNC);
+
+		if (ifunc==NULL)
+		{
+			_ERRLOG("cannot load function '%s' - '%s'", CFG_INIT_FUNC, dlerror());
+		}
+		else
+		{
+			ifunc();
+		}
+
+
+		sec_priv_get_last_error_func le=dlsym(lib, CFG_GET_LAST_ERROR_FUNC);
+
+		if (le==NULL)
+		{
+			_ERRLOG("cannot load function '%s' - '%s'", CFG_GET_LAST_ERROR_FUNC, dlerror());
+		}
+		
+		if ((uname!=NULL)&&(strlen(uname)>0))
+		{
+			byname=dlsym(lib,CFG_BY_NAME_FUNC);
+
+			if (byname==NULL)
 			{
-				libname[strlen(libname)-1]=0;
+				_ERRLOG("cannot load function '%s' - '%s'", CFG_BY_NAME_FUNC, dlerror());
+			}
+			else
+			{
+				_DEBUGLOG("calling... '%s'", CFG_BY_NAME_FUNC);
+				err_result=byname(uname, outs);
+
+				if (le!=NULL)
+				{
+					err_string=le();
+					sec_priv_set_last_error(err_string);
+					_DEBUGLOG(" '%s' has returned %d %s %d", CFG_BY_NAME_FUNC, err_result, le(), *outs);
+				}
+
 			}
 
-			lib=dlopen(libname, RTLD_LAZY);
-			err=SECERR_UNKNOWNERROR;
+		}
+		else
+		{
+			byuid=dlsym(lib,CFG_BY_UID_FUNC);
 
-			if ((!lib)||(strlen(libname)==0))
+			if (byuid==NULL)
 			{
-				printf("cannot open library '%s' - '%s'\n",libname, dlerror());
+				_ERRLOG("cannot load function '%s' - '%s'", CFG_BY_UID_FUNC, dlerror());
 			}
-			else 
-
+			else
 			{
-				init_func ifunc=dlsym(lib,CFG_INITFUNC);
+				_DEBUGLOG("calling... '%s'", CFG_BY_NAME_FUNC);
+				err_result=byuid(uid, outs);
 
-				if (ifunc==0)
+				if (le!=NULL)
 				{
-					printf("cannot load function '%s' - '%s'\n",CFG_INITFUNC, dlerror());
-				}
-				else
-				{
-					ifunc();
-				}
-				
-				if (uname!=0)
-				{
-					byname=dlsym(lib,CFG_BYNAMEFUNC);
-
-					if (byname==0)
-					{
-						printf("cannot load function '%s'",CFG_BYNAMEFUNC);
-					}
-					else
-					{
-						err=byname(uname, outs);
-					}
-
-				}
-				else
-				{
-					byuid=dlsym(lib,CFG_BYUIDFUNC);
-
-					if (byuid==0)
-					{
-						printf("cannot load function '%s'",CFG_BYNAMEFUNC);
-					}
-					else
-					{
-						err=byuid(uid, outs);
-					}
-
+					err_string=le();
+					sec_priv_set_last_error(err_string);
+					_DEBUGLOG(" '%s' has returned %d %s", CFG_BY_NAME_FUNC, err_result, le());
 				}
 
-				dlclose(lib);
-			}
-
-			if ((err==SECERR_SUCCESS)||(err==SECERR_OUTOFMEM)||(err==SECERR_UNKNOWNERROR))
-			{
-				fclose(f);
-				free(libname);
-				return (err);
 			}
 
 		}
 
-		free(libname);
-		fclose(f);
-	}
-	else
-	{
-		return (SECERR_CFGREADERROR);
+		dlclose(lib);
+
+		if (err_result)
+		{
+			fclose(f);
+			free(libname);
+			return (err_result);
+		}
+
 	}
 
+	return (err_result);
+	free(libname);
+	fclose(f);
 }
 
-void priv_init()
+void sec_priv_init()
 {
-	printf("debug: securepriv_look.c initialized\n");
-	enum_db=enum_priority_list;
-	printf("enum_db: %d\n", enum_db);
+	sec_priv_dl_init();
+	sec_priv_set_enum_db_func(enum_priority_list);
+	_DEBUGLOG("'securepriv_look.so' initialized", "")
 }

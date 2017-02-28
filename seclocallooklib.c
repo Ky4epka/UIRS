@@ -4,148 +4,193 @@
 #include "securetypes.h"
 #include "seclocallooklib.h"
 
-void strtostruct(char *str, struct usersec_struct *outs)
+void print_struct(const struct sec_priv_usersec_struct *outs)
+{
+	_DEBUGLOG("	%s", outs->user_name);
+	_DEBUGLOG("	%d", outs->uid);
+	_DEBUGLOG("	%d", outs->security_level);
+	_DEBUGLOG("	%d", outs->security_category);
+}
+
+
+uint64_t str_to_uint64(const char *str)
+{
+	uint64_t num=0;
+	bool numstarted=false;
+
+	int len=strlen(str);
+	int i=len-1;
+	uint64_t mul=1;
+
+	while (i>=0)
+	{
+
+		if ((str[i]>='0')&&(str[i]<='9'))
+		{
+			numstarted=true;
+			num+=mul*(str[i]-'0');
+			mul=mul*10;
+		}
+		else if (numstarted)
+		{
+			break;
+		}
+
+		i--;
+	}
+
+	return (num);
+}
+
+bool str_to_struct(const char *str, struct sec_priv_usersec_struct *outs)
 {
 	int len=strlen(str);
-	char *word=malloc(len);
-	int wordlen=0;
+	char *word=NULL;
+
+	/*if (word==NULL)
+	{
+		sec_priv_set_last_error(SECERR_OUT_OF_MEM);
+		_ERRLOG("has returned 'SECERR_OUT_OF_MEM'", "")
+		return (false);
+	}
+	else*/ if (strlen(str)==0)
+	{
+		return (false);
+	}
+
 	int counter=0;
 
-	char c=0;
-	int i=0;
-	while (i<len)
+	word=strtok(str, LOCAL_DB_LINE_DELIMITERS);
+	while (word!=NULL)
 	{
-		c=str[i];
 
-		if ((c=='|')||(i==len-1))
+		if (counter==0)
 		{
-			word[wordlen]=0;
-
-			if (counter==0)
-			{
-				outs->user_name=malloc(wordlen);
-				strcpy(outs->user_name, word);
-			}
-			else if (counter==1)
-			{
-				outs->uid=atoi(word);
-			}
-			else if (counter==2)
-			{
-				outs->security_level=atoi(word);
-			}
-			else if (counter==2)
-			{
-				strncpy(outs->security_category, word, 10);
-			}
-
-			wordlen=0;
-			counter++;
+			outs->user_name=malloc(strlen(word));
+			strcpy(outs->user_name, word);
 		}
-		else
+		else if (counter==1)
 		{
-			word[wordlen++]=c;
+			outs->uid=atoi(word);
+		}
+		else if (counter==2)
+		{
+			outs->security_level=atoi(word);
+		}
+		else if (counter==3)
+		{
+			outs->security_category=str_to_uint64(word);
 		}
 
-		i++;
+		counter++;
+		word=strtok(NULL, LOCAL_DB_LINE_DELIMITERS);
 	}
 
 	free(word);
-}
+	return (true);
+} 
 
-int enum_localdb(char *uname, int uid, struct usersec_struct **outs)
+bool enum_localdb(const char *uname, const uid_t uid, struct sec_priv_usersec_struct **outs)
 {
-	*outs=0;
+	*outs=NULL;
 
-	if ((uname==0)&&(uid==0))
+	if ((uname==NULL)&&(uid==0))
 	{
-		return (SECERR_UNKNOWNERROR);
+		sec_priv_set_last_error(SECERR_UNKNOWN_ERROR);
+		_ERRLOG("has returned 'SECERR_UNKNOWN_ERROR'", "")
+		return (false);
 	}
 
 	FILE *f=fopen(LOCAL_DBFILE, "r+t");
 
-	if (f!=0)
+	if (f==NULL)
 	{
-		char *line=malloc(LOCAL_DBLINEMAXSIZE);
-		struct usersec_struct *buf=malloc(sizeof(struct usersec_struct));
+		sec_priv_set_last_error(SECERR_DB_ERROR);
+		_ERRLOG("has returned 'SECERR_DB_ERROR'", "")
+		return (false);
+	}
 
-		if ((buf==0)||(line==0))
-		{
-			fclose(f);
-			return (SECERR_OUTOFMEM);
-		}
-		
-		int found=0;
-		
-		while (!feof(f))
-		{
-			fgets(line, LOCAL_DBLINEMAXSIZE, f);
-			strtostruct(line, buf);
+	char *line=malloc(LOCAL_DB_LINE_MAX_SIZE);
+	struct sec_priv_usersec_struct *buf=malloc(sizeof(struct sec_priv_usersec_struct));
 
-			if (uname!=0)
-			{
-				
-				if (strcmp(uname, buf->user_name)==0)
-				{
-					found=1;
-				}
-
-			}
-			else
-			{
-
-				if (uid==buf->uid)
-				{
-					found=1;
-				}
-
-			}
-			
-			if (found==1)
-			{
-				break;
-			}
-			else
-			{
-				free(buf->user_name);
-			}
-
-		}
-
-		free(line);
+	if ((buf==NULL)||(line==NULL))
+	{
 		fclose(f);
+		sec_priv_set_last_error(SECERR_OUT_OF_MEM);
+		_ERRLOG("has returned 'SECERR_OUT_OF_MEM'", "")
+		return (false);
+	}
+	
+	bool found=false;
+	
+	while (!feof(f))
+	{
+		fgets(line, LOCAL_DB_LINE_MAX_SIZE, f);
 
-		if (found==1)
+		if (!str_to_struct(line, buf))
 		{
-			*outs=buf;
-			return (SECERR_SUCCESS);
+			continue;
+		}
+
+		_DEBUGLOG("Struct", "");
+		print_struct(buf);
+
+		if (uname!=NULL)
+		{
+			found=(strcmp(uname, buf->user_name)==0);
 		}
 		else
 		{
-			free(buf);
+			found=(uid==buf->uid);
+		}
+		
+		if (found)
+		{
+			break;
+		}
+		else
+		{
+			free(buf->user_name);
 		}
 
 	}
+
+	free(line);
+	fclose(f);
+
+	if (found)
+	{
+		*outs=buf;
+		sec_priv_set_last_error(SECERR_SUCCESS);
+		_ERRLOG("has returned 'SECERR_SUCCESS'", "")
+		return (true);
+	}
 	else
 	{
-		return (SECERR_DBERROR);
+		free(buf);
 	}
 
-	if (uname!=0)
+	if (uname!=NULL)
 	{
-		return (SECERR_NAMENOTFOUND);
+		sec_priv_set_last_error(SECERR_NAME_NOT_FOUND);
+		_ERRLOG("has returned 'SECERR_NAME_NOT_FOUND'", "")
+		return (false);
 	}
 	else
 	{
-		return (SECERR_UIDNOTFOUND);
+		sec_priv_set_last_error(SECERR_UID_NOT_FOUND);
+		_ERRLOG("has returned 'SECERR_UID_NOT_FOUND'", "")
+		return (false);
 	}
 
-	return (SECERR_UNKNOWNERROR);
+	sec_priv_set_last_error(SECERR_UNKNOWN_ERROR);
+		_ERRLOG("has returned 'SECERR_UNKNOWN_ERROR'", "")
+	return (false);
 }
 
-void priv_init()
+void sec_priv_init()
 {
-	printf("debug: seclocallooklib.so initialized\n");
-	enum_db=enum_localdb;
-	printf("enum_db: %d\n", enum_db);
+	sec_priv_dl_init();
+	sec_priv_set_enum_db_func(enum_localdb);
+	_DEBUGLOG("'seclocallooklib.so' initialized", "")
 }
