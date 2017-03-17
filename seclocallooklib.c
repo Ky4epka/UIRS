@@ -4,6 +4,8 @@
 #include "securetypes.h"
 #include "seclocallooklib.h"
 
+struct sec_priv_local_db_params_struct *last_struct=NULL;
+
 void print_struct(const struct sec_priv_usersec_struct *outs)
 {
 	_DEBUGLOG("	%s", outs->user_name);
@@ -90,14 +92,14 @@ bool str_to_struct(const char *str, struct sec_priv_usersec_struct *outs)
 	return (true);
 } 
 
-bool enum_localdb(const char *uname, const uid_t uid, struct sec_priv_usersec_struct **outs)
+bool enum_local_db(const char *uname, const uid_t uid, struct sec_priv_usersec_struct **outs)
 {
 	*outs=NULL;
 
 	if ((uname==NULL)&&(uid==0))
 	{
 		sec_priv_set_last_error(SECERR_UNKNOWN_ERROR);
-		_ERRLOG("has returned 'SECERR_UNKNOWN_ERROR'", "")
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 
@@ -106,7 +108,7 @@ bool enum_localdb(const char *uname, const uid_t uid, struct sec_priv_usersec_st
 	if (f==NULL)
 	{
 		sec_priv_set_last_error(SECERR_DB_ERROR);
-		_ERRLOG("has returned 'SECERR_DB_ERROR'", "")
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 
@@ -117,7 +119,7 @@ bool enum_localdb(const char *uname, const uid_t uid, struct sec_priv_usersec_st
 	{
 		fclose(f);
 		sec_priv_set_last_error(SECERR_OUT_OF_MEM);
-		_ERRLOG("has returned 'SECERR_OUT_OF_MEM'", "")
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 	
@@ -162,7 +164,7 @@ bool enum_localdb(const char *uname, const uid_t uid, struct sec_priv_usersec_st
 	{
 		*outs=buf;
 		sec_priv_set_last_error(SECERR_SUCCESS);
-		_ERRLOG("has returned 'SECERR_SUCCESS'", "")
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (true);
 	}
 	else
@@ -172,25 +174,108 @@ bool enum_localdb(const char *uname, const uid_t uid, struct sec_priv_usersec_st
 
 	if (uname!=NULL)
 	{
-		sec_priv_set_last_error(SECERR_NAME_NOT_FOUND);
-		_ERRLOG("has returned 'SECERR_NAME_NOT_FOUND'", "")
+		sec_priv_set_last_error(SECERR_USER_NAME_NOT_FOUND);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 	else
 	{
-		sec_priv_set_last_error(SECERR_UID_NOT_FOUND);
-		_ERRLOG("has returned 'SECERR_UID_NOT_FOUND'", "")
+		sec_priv_set_last_error(SECERR_USER_ID_NOT_FOUND);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 
 	sec_priv_set_last_error(SECERR_UNKNOWN_ERROR);
-		_ERRLOG("has returned 'SECERR_UNKNOWN_ERROR'", "")
+	_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 	return (false);
+}
+
+bool sec_priv_get_uname(struct sec_priv_usersec_struct **outs, const void *params)
+{
+	last_struct=params;
+
+	if (outs==NULL)
+	{
+		sec_priv_set_last_error(SECERR_NULL_STRUCT_PTR);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+		return (false);
+	}
+
+	if (last_struct==NULL)
+	{
+		sec_priv_set_last_error(SECERR_PARAM_STRUCT_EMPTY_PTR);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+		return (false);
+	}
+
+	if (strcmp(last_struct->signature, LOCAL_DB_STRUCT_SIGNATURE)!=0)
+	{
+		sec_priv_set_last_error(SECERR_PARAM_STRUCT_INVALID_SIGNATURE);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+	}
+
+	if ((last_struct->user_name==NULL)||(strlen(last_struct->user_name)==0))
+	{
+		sec_priv_set_last_error(SECERR_EMPTY_USER_NAME);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+	}
+
+printf("HELLO\n");
+	return (enum_local_db(last_struct->user_name, 0, outs));
+}
+
+bool sec_priv_get_uid(struct sec_priv_usersec_struct **outs, const void *params)
+{
+	last_struct=params;
+
+	if (outs==NULL)
+	{
+		sec_priv_set_last_error(SECERR_NULL_STRUCT_PTR);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+		return (false);
+	}
+
+	if (last_struct==NULL)
+	{
+		sec_priv_set_last_error(SECERR_PARAM_STRUCT_EMPTY_PTR);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+		return (false);
+	}
+
+	if (strcmp(last_struct->signature, LOCAL_DB_STRUCT_SIGNATURE)!=0)
+	{
+		sec_priv_set_last_error(SECERR_PARAM_STRUCT_INVALID_SIGNATURE);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+	}
+
+	if (last_struct->user_id==0)
+	{
+		sec_priv_set_last_error(SECERR_EMPTY_USER_ID);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error())
+	}
+
+	return (enum_local_db(NULL, last_struct->user_id, outs));
 }
 
 void sec_priv_init()
 {
 	sec_priv_dl_init();
-	sec_priv_set_enum_db_func(enum_localdb);
 	_DEBUGLOG("'seclocallooklib.so' initialized", "")
+}
+
+void sec_priv_free()
+{
+
+	if (last_struct!=NULL)
+	{
+
+		if (last_struct->user_name!=NULL)
+		{
+			free(last_struct->user_name);
+		}
+
+		free(last_struct);
+		last_struct=NULL;
+	}
+
 }

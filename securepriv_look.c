@@ -2,23 +2,17 @@
 #include "securepriv_look.h"
 #include <stdio.h>
 #include <dlfcn.h>
+#include "config_kit.h"
 
-bool enum_priority_list(const char *uname, const uid_t uid, struct sec_priv_usersec_struct **outs)
+struct sec_priv_usersec_struct *last_struct=NULL;
+
+bool enum_priority_list(const char *func_name, struct sec_priv_usersec_struct **outs, const void **params)
 {
 
-	if ((uname==NULL)&&(uid==0))
+	if (cfg_struct==NULL)
 	{
-		_ERRLOG("has returned 'SECERR_UNKNOWN_ERROR'", "")
-		sec_priv_set_last_error(SECERR_UNKNOWN_ERROR);
-		return (false);
-	}
-
-	FILE *f=fopen(CFG_FILE, "r+t");
-
-	if (f==NULL)
-	{
-		_ERRLOG("has returned 'SECERR_CFG_READ_ERROR'", "")
 		sec_priv_set_last_error(SECERR_CFG_READ_ERROR);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 
@@ -28,32 +22,26 @@ bool enum_priority_list(const char *uname, const uid_t uid, struct sec_priv_user
 
 	if (libname==NULL)
 	{
-		_ERRLOG("has returned 'SECERR_OUT_OF_MEM'", "")
 		sec_priv_set_last_error(SECERR_OUT_OF_MEM);
-		fclose(f);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
 		return (false);
 	}
 
 	void *lib=NULL;
-	sec_priv_get_name_func byname=0;
-	sec_priv_get_uid_func byuid=0;
+	sec_priv_getX_func get_func=0;
 	bool err_result=false;
 	char *err_string=NULL;
 
-	while (!feof(f))
+	struct module_struct *ms=cfg_struct->first_module;
+	while (ms!=NULL)
 	{
-		fgets(libname,FILENAME_MAX,f);
-		
-		if (strlen(libname)>0)
-		{
-			libname[strlen(libname)-1]=0;
-		}
-
+		strcpy(libname, ms->lib_name);
 		lib=dlopen(libname, RTLD_LAZY);
 
 		if ((!lib)||(strlen(libname)==0))
 		{
 			_ERRLOG("cannot open library '%s' - '%s'", libname, dlerror());
+			ms=ms->next_module;
 			continue;
 		}
 
@@ -77,72 +65,102 @@ bool enum_priority_list(const char *uname, const uid_t uid, struct sec_priv_user
 			_ERRLOG("cannot load function '%s' - '%s'", CFG_GET_LAST_ERROR_FUNC, dlerror());
 		}
 		
-		if ((uname!=NULL)&&(strlen(uname)>0))
+		get_func=dlsym(lib,func_name);
+
+		if (get_func==NULL)
 		{
-			byname=dlsym(lib,CFG_BY_NAME_FUNC);
-
-			if (byname==NULL)
-			{
-				_ERRLOG("cannot load function '%s' - '%s'", CFG_BY_NAME_FUNC, dlerror());
-			}
-			else
-			{
-				_DEBUGLOG("calling... '%s'", CFG_BY_NAME_FUNC);
-				err_result=byname(uname, outs);
-
-				if (le!=NULL)
-				{
-					err_string=le();
-					sec_priv_set_last_error(err_string);
-					_DEBUGLOG(" '%s' has returned %d %s %d", CFG_BY_NAME_FUNC, err_result, le(), *outs);
-				}
-
-			}
-
+			_ERRLOG("cannot load function '%s' - '%s'", func_name, dlerror());
 		}
 		else
 		{
-			byuid=dlsym(lib,CFG_BY_UID_FUNC);
+			_DEBUGLOG("calling... '%s' %d %d", func_name, outs, params);
+			err_result=get_func(outs, params);
+			_DEBUGLOG("end calling... '%s'", func_name);
 
-			if (byuid==NULL)
+			if (le!=NULL)
 			{
-				_ERRLOG("cannot load function '%s' - '%s'", CFG_BY_UID_FUNC, dlerror());
-			}
-			else
-			{
-				_DEBUGLOG("calling... '%s'", CFG_BY_NAME_FUNC);
-				err_result=byuid(uid, outs);
-
-				if (le!=NULL)
-				{
-					err_string=le();
-					sec_priv_set_last_error(err_string);
-					_DEBUGLOG(" '%s' has returned %d %s", CFG_BY_NAME_FUNC, err_result, le());
-				}
-
+				err_string=le();
+				sec_priv_set_last_error(err_string);
+				_DEBUGLOG(" '%s' has returned %d %s %d", func_name, err_result, le(), 0);
 			}
 
+		}
+
+		sec_priv_free_func free_func=dlsym(lib, CFG_FREE_FUNC);
+
+		if (free_func==NULL)
+		{
+			_ERRLOG("cannot load function '%s' - '%s'", CFG_FREE_FUNC, dlerror());
+		}
+		else
+		{
+			free_func();
 		}
 
 		dlclose(lib);
 
 		if (err_result)
 		{
-			fclose(f);
+			last_struct=*outs;
 			free(libname);
 			return (err_result);
 		}
 
+		ms=ms->next_module;
 	}
 
 	return (err_result);
 	free(libname);
-	fclose(f);
+}
+
+
+bool sec_priv_get(const char *func_name, struct sec_priv_usersec_struct **outs, const void *params)
+{
+
+	if (outs==NULL)
+	{
+		sec_priv_set_last_error(SECERR_NULL_STRUCT_PTR);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
+		return (false);
+	}
+	else if (func_name==NULL)
+	{
+		sec_priv_set_last_error(SECERR_EMPTY_FUNC_NAME);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
+		return (false);
+	}
+
+	if (!contain_export_function(func_name))
+	{
+		sec_priv_set_last_error(SECERR_EXPORT_FUNC_NOT_FOUND);
+		_ERRLOG("has returned '%s'", sec_priv_get_last_error());
+		return (false);
+	}
+
+	return (enum_priority_list(func_name, outs, params));
 }
 
 void sec_priv_init()
 {
+	load_config();
+	display_config(NULL);
 	sec_priv_dl_init();
-	sec_priv_set_enum_db_func(enum_priority_list);
 	_DEBUGLOG("'securepriv_look.so' initialized", "")
+}
+
+void sec_priv_free()
+{
+
+	if (last_struct!=NULL)
+	{
+
+		if (last_struct->user_name!=NULL)
+		{
+			free(last_struct->user_name);
+		}
+
+		free(last_struct);
+		last_struct=NULL;
+	}
+
 }

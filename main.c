@@ -1,5 +1,6 @@
 #include "securetypes.h"
 #include "securepriv_look.h"
+#include "seclocallooklib.h"
 #include <stdio.h>
 #include <dlfcn.h>
 #include <string.h>
@@ -14,12 +15,11 @@ void print_struct(const struct sec_priv_usersec_struct *outs)
 
 int main(int argc, char *argv[], char *envp[])
 {
+
 	_DEBUGLOG("begin...", "");
 	char *libname=malloc(FILENAME_MAX);
 	strcpy(libname, "securepriv_look.so");
 	void *lib=NULL;
-	sec_priv_get_name_func byname=0;
-	sec_priv_get_uid_func byuid=0;
 	bool err_result=false;
 	char *uname=malloc(100);
 	uid_t uid=0;
@@ -46,7 +46,7 @@ printf("argc %d", argc);
 
 	}
 
-	struct sec_priv_userpriv_struct *outs=0;
+	struct sec_priv_userpriv_struct *outs=NULL;
 
 	lib=dlopen(libname, RTLD_LAZY);
 	err_result=false;
@@ -77,47 +77,34 @@ printf("argc %d", argc);
 			_ERRLOG("cannot load function '%s' - '%s'", CFG_GET_LAST_ERROR_FUNC, dlerror());
 		}
 
-		if ((uname!=NULL)&&(strlen(uname)>0))
+		sec_priv_get_func x_func=dlsym(lib,"sec_priv_get");
+
+		if (x_func==NULL)
 		{
-			byname=dlsym(lib,CFG_BY_NAME_FUNC);
-
-			if (byname==NULL)
-			{
-				_ERRLOG("cannot load function '%s' - '%s'", CFG_BY_NAME_FUNC, dlerror());
-			}
-			else
-			{
-				_DEBUGLOG("calling... '%s'", CFG_BY_NAME_FUNC);
-				err_result=byname(uname, &outs);
-
-				if (le!=NULL)
-				{
-					err_string=le();
-					_DEBUGLOG(" '%s' has returned %d %s", CFG_BY_NAME_FUNC, err_result, le());
-				}
-
-			}
-
+			_ERRLOG("cannot load function '%s' - '%s'", "sec_priv_get", dlerror());
 		}
 		else
 		{
-			byuid=dlsym(lib,CFG_BY_UID_FUNC);
+			_DEBUGLOG("calling... '%s' %d", "sec_priv_get", &outs);
+			struct sec_priv_local_db_params_struct *params=malloc(sizeof(struct sec_priv_local_db_params_struct));
+			strcpy(params->signature, LOCAL_DB_STRUCT_SIGNATURE);
+			params->user_name=malloc(strlen(uname)+1);
+			strcpy(params->user_name, uname);
+			params->user_id=uid;
 
-			if (byuid==0)
+			if ((uname==NULL)||(uname=="")||(strlen(uname)==0))
 			{
-				_ERRLOG("cannot load function '%s' - '%s'", CFG_BY_UID_FUNC, dlerror());
+				err_result=x_func("sec_priv_get_uid", &outs, params);
 			}
 			else
 			{
-				_DEBUGLOG("calling... '%s'", CFG_BY_NAME_FUNC);
-				err_result=byuid(uid, &outs);
+				err_result=x_func("sec_priv_get_uname", &outs, params);
+			}
 
-				if (le!=NULL)
-				{
-					err_string=le();
-					_DEBUGLOG(" '%s' has returned %d %s", CFG_BY_NAME_FUNC, err_result, le());
-				}
-
+			if (le!=NULL)
+			{
+				err_string=le();
+				_DEBUGLOG(" '%s' has returned %d %s", "sec_priv_get", err_result, le());
 			}
 
 		}
@@ -133,6 +120,17 @@ printf("argc %d", argc);
 		{
 			_DEBUGLOG("Output structure: %d", outs);
 			print_struct(outs);
+		}
+
+		sec_priv_free_func free_func=dlsym(lib, CFG_FREE_FUNC);
+
+		if (free_func==NULL)
+		{
+			_ERRLOG("cannot load function '%s' - '%s'", CFG_FREE_FUNC, dlerror());
+		}
+		else
+		{
+			free_func();
 		}
 
 		dlclose(lib);

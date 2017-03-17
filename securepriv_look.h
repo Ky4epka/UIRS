@@ -12,4 +12,7 @@
 	...
 */
 
+
+extern bool sec_priv_get(const char *func_name, struct sec_priv_usersec_struct **outs, const void *params);
+
 #endif
