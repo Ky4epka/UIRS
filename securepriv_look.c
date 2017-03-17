@@ -65,47 +65,51 @@ bool enum_priority_list(const char *func_name, struct sec_priv_usersec_struct **
 			_ERRLOG("cannot load function '%s' - '%s'", CFG_GET_LAST_ERROR_FUNC, dlerror());
 		}
 		
-		get_func=dlsym(lib,func_name);
-
-		if (get_func==NULL)
+		if (contain_export_function(func_name))
 		{
-			_ERRLOG("cannot load function '%s' - '%s'", func_name, dlerror());
-		}
-		else
-		{
-			_DEBUGLOG("calling... '%s' %d %d", func_name, outs, params);
-			err_result=get_func(outs, params);
-			_DEBUGLOG("end calling... '%s'", func_name);
+			get_func=dlsym(lib,func_name);
 
-			if (le!=NULL)
+			if (get_func==NULL)
 			{
-				err_string=le();
-				sec_priv_set_last_error(err_string);
-				_DEBUGLOG(" '%s' has returned %d %s %d", func_name, err_result, le(), 0);
+				_ERRLOG("cannot load function '%s' - '%s'", func_name, dlerror());
+			}
+			else
+			{
+				_DEBUGLOG("calling... '%s' %d %d", func_name, outs, params);
+				err_result=get_func(outs, params);
+				_DEBUGLOG("end calling... '%s'", func_name);
+
+				if (le!=NULL)
+				{
+					err_string=le();
+					sec_priv_set_last_error(err_string);
+					_DEBUGLOG(" '%s' has returned %d %s %d", func_name, err_result, le(), 0);
+				}
+
 			}
 
 		}
 
-		sec_priv_free_func free_func=dlsym(lib, CFG_FREE_FUNC);
-
-		if (free_func==NULL)
-		{
-			_ERRLOG("cannot load function '%s' - '%s'", CFG_FREE_FUNC, dlerror());
-		}
-		else
-		{
-			free_func();
-		}
-
-		dlclose(lib);
-
 		if (err_result)
 		{
+			sec_priv_free_func free_func=dlsym(lib, CFG_FREE_FUNC);
+
+			if (free_func==NULL)
+			{
+				_ERRLOG("cannot load function '%s' - '%s'", CFG_FREE_FUNC, dlerror());
+			}
+			else
+			{
+				free_func();
+			}
+
+			dlclose(lib);
 			last_struct=*outs;
 			free(libname);
 			return (err_result);
 		}
 
+		dlclose(lib);
 		ms=ms->next_module;
 	}
 
