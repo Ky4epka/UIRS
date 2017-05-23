@@ -1,16 +1,22 @@
-#include "securetypes.h"
-#include "securepriv_look.h"
-#include "seclocallooklib.h"
 #include <stdio.h>
 #include <dlfcn.h>
 #include <string.h>
+#include "sec_priv_interface_share.h"
+#include "sec_priv_interface_share_funcs.h"
+#include <sys/capability.h>
+
+struct _cap_struct {
+    struct __user_cap_header_struct head;
+    struct __user_cap_data_struct set;
+};
 
 void print_struct(const struct sec_priv_usersec_struct *outs)
 {
 	_DEBUGLOG("	%s", outs->user_name);
 	_DEBUGLOG("	%d", outs->uid);
-	_DEBUGLOG("	%d", outs->security_level);
-	_DEBUGLOG("	%d", outs->security_category);
+	_DEBUGLOG("	%d", outs->security_level_min);
+	_DEBUGLOG("	%d", outs->security_level_max);
+	_DEBUGLOG("	%s", outs->security_caps);
 }
 
 int main(int argc, char *argv[], char *envp[])
@@ -18,12 +24,12 @@ int main(int argc, char *argv[], char *envp[])
 
 	_DEBUGLOG("begin...", "");
 	char *libname=malloc(FILENAME_MAX);
-	strcpy(libname, "securepriv_look.so");
+	strcpy(libname, "sec_priv_look.so");
 	void *lib=NULL;
 	bool err_result=false;
 	char *uname=malloc(100);
 	uid_t uid=0;
-printf("argc %d", argc);
+
 	if (argc==1)
 	{
 		strcpy(uname, "user3");
@@ -47,97 +53,26 @@ printf("argc %d", argc);
 	}
 
 	struct sec_priv_userpriv_struct *outs=NULL;
+	sec_priv_init();
 
-	lib=dlopen(libname, RTLD_LAZY);
-	err_result=false;
-	char *err_string=NULL;
-
-	if (!lib)
+	if ((uname==NULL)||(strlen(uname)==0))
 	{
-		_ERRLOG("cannot open library '%s' - '%s'", libname, dlerror())
+		err_result=sec_priv_get_by_uid(uid, &outs);
 	}
 	else
 	{
-		_DEBUGLOG("dlopened '%s'", libname);
-		sec_priv_init_func ifunc=dlsym(lib,CFG_INIT_FUNC);
-
-		if (ifunc==NULL)
-		{
-			_ERRLOG("cannot load function '%s' - '%s'", CFG_INIT_FUNC, dlerror());
-		}
-		else
-		{
-			ifunc();
-		}
-
-		sec_priv_get_last_error_func le=dlsym(lib, CFG_GET_LAST_ERROR_FUNC);
-
-		if (le==NULL)
-		{
-			_ERRLOG("cannot load function '%s' - '%s'", CFG_GET_LAST_ERROR_FUNC, dlerror());
-		}
-
-		sec_priv_get_func x_func=dlsym(lib,"sec_priv_get");
-
-		if (x_func==NULL)
-		{
-			_ERRLOG("cannot load function '%s' - '%s'", "sec_priv_get", dlerror());
-		}
-		else
-		{
-			_DEBUGLOG("calling... '%s' %d", "sec_priv_get", &outs);
-			struct sec_priv_local_db_params_struct *params=malloc(sizeof(struct sec_priv_local_db_params_struct));
-			strcpy(params->signature, LOCAL_DB_STRUCT_SIGNATURE);
-			params->user_name=malloc(strlen(uname)+1);
-			strcpy(params->user_name, uname);
-			params->user_id=uid;
-
-			if ((uname==NULL)||(uname=="")||(strlen(uname)==0))
-			{
-				err_result=x_func("sec_priv_get_uid", &outs, params);
-			}
-			else
-			{
-				err_result=x_func("sec_priv_get_uname", &outs, params);
-			}
-
-			if (le!=NULL)
-			{
-				err_string=le();
-				_DEBUGLOG(" '%s' has returned %d %s", "sec_priv_get", err_result, le());
-			}
-
-		}
-
-		if (err_string==NULL)
-		{
-			err_string="";
-		}
-
-		_DEBUGLOG("Find result: '%d' - '%s'", err_result, err_string);
-		
-		if (err_result)
-		{
-			_DEBUGLOG("Output structure: %d", outs);
-			print_struct(outs);
-		}
-
-		sec_priv_free_func free_func=dlsym(lib, CFG_FREE_FUNC);
-
-		if (free_func==NULL)
-		{
-			_ERRLOG("cannot load function '%s' - '%s'", CFG_FREE_FUNC, dlerror());
-		}
-		else
-		{
-			free_func();
-		}
-
-		dlclose(lib);
+		err_result=sec_priv_get_by_uname(uname, &outs);
 	}
 
-	free(uname);
-	free(libname);
+	sec_priv_free(outs);
 	_DEBUGLOG("end", "");
+
+	cap_t cap=cap_get_proc();
+	ssize_t len;
+	char *str=strdup(cap_to_text(cap, &len));
+	printf("PID: %d", cap->head.pid);
+	printf("CAPS: %d %s\n", len, str);
+	printf("EFF: %d", cap->set.effective);
+	free(str);
 	return (0);
 }

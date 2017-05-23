@@ -1,9 +1,10 @@
 #/bin/bash
 
 gcc -Wall -c main.c
-gcc -Wall -fPIC -c config_kit.c securetypes.c securepriv_look.c
-gcc -shared -o securepriv_look.so config_kit.o securepriv_look.o securetypes.o -ldl
-gcc -Wall -fPIC -c securetypes.c seclocallooklib.c
-gcc -shared -o seclocallooklib.so seclocallooklib.o securetypes.o -ldl
-gcc main.o -ldl -o testload.run -L. -Wl,-rpath,.
+gcc -Wall -fPIC -c sec_priv_config_kit.c sec_priv_types.c sec_priv_look.c
+gcc -shared -fPIC -o libsec_priv_look.so sec_priv_config_kit.o sec_priv_look.o sec_priv_types.o -ldl
+gcc -Wall -fPIC -c sec_priv_types.c sec_priv_locallooklib.c
+gcc -shared -fPIC -o libsec_priv_locallook/libsec_priv_locallook.so sec_priv_locallooklib.o sec_priv_types.o -ldl
+gcc main.o -ldl -o testload.run -L. -lsec_priv_look -Wl,-rpath,. -lcap
 ./testload.run
+rm *.o

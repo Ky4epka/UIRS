@@ -1,0 +1,8 @@
+Name: Capability security privileges
+Default: yes
+Priority: 0
+Auth-Type: Primary
+Auth:
+	[success=end default=ignore]	sec_priv_caps_auth.so
+Auth-Initial:
+	[success=end default=ignore]	sec_priv_caps_auth.so

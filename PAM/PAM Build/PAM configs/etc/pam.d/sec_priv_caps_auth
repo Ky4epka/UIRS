@@ -1,0 +1,2 @@
+# PAM configuration for capability security privileges 
+auth requisite sec_priv_caps_auth.so

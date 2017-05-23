@@ -1,4 +1,4 @@
-#include "config_kit.h"
+#include "sec_priv_config_kit.h"
 
 extern struct config_struct *cfg_struct;
 
