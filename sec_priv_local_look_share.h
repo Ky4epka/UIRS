@@ -8,7 +8,7 @@
 #define SECERR_EMPTY_USER_ID		"SECERR_EMPTY_USER_ID"
 
 
-#define LOCAL_DBFILE			"local.db"
+#define LOCAL_DBFILE			"/usr/lib/_sec_priv/local.db"
 #define LOCAL_DB_LINE_MAX_SIZE 		1024
 #define LOCAL_DB_LINE_DELIMITERS 	" |"
 #define LOCAL_DB_CAPS_BOUND_DELIMITERS	"[]"

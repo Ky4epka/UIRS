@@ -56,6 +56,10 @@ typedef const char * (*sec_priv_get_last_error_func) ();
 #define CFG_GET_FUNC		"sec_priv_get"
 #define CFG_GET_LAST_ERROR_FUNC	"sec_priv_get_last_error"
 
+
+//#define _DEBUGLOG(FRMT_STR, ...) {  }
+//#define _ERRLOG(FRMT_STR, ...) {  }
+
 #define _DEBUGLOG(FRMT_STR, ...) { printf("debug '%s::%s()': "#FRMT_STR"\n",__FILE__,__PRETTY_FUNCTION__, __VA_ARGS__); }
 #define _ERRLOG(FRMT_STR, ...) { printf("debug '%s::%s()' error: "#FRMT_STR"\n",__FILE__,__PRETTY_FUNCTION__, __VA_ARGS__); }
 

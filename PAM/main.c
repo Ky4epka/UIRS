@@ -17,11 +17,23 @@ int main(int argc, char *argv[], char *envp[])
 	cap_t cap=cap_get_proc();
 	ssize_t len;
 	char *str=strdup(cap_to_text(cap, &len));
-	printf("PID: %d", cap->head.pid);
+	printf("PID: %d\n", cap->head.pid);
 	printf("CAPS: %d %s\n", len, str);
-	printf("EFF: %d", cap->set.effective);
-	test_func();
+	printf("EFF: %d\n", cap->set.effective);
 	free(str);
+	str=strdup("all=pe cap_chown-e cap_kill-ep");
+	cap_t caps=cap_from_text(str);
+
+	if (caps!=NULL)
+	{
+		printf("caps successfull %d\n", caps);
+	}
+	else
+	{
+		printf("caps is empty\n");
+	}
+
+	test_func();
 	return (0);
 }
 

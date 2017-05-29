@@ -307,7 +307,7 @@ void load_config()
 
 	char **dirs;
 	int32_t dir_count=0;
-	enum_dirs(".", &dirs, &dir_count);
+	enum_dirs(CONFIG_MODULES_PATH_DEFAULT, &dirs, &dir_count);
 
 	char line[1024];
 	struct module_struct *ms;
@@ -329,6 +329,13 @@ void load_config()
 		{
 			char *val=strstr(line, CONFIG_VALUE_ASSIGN_DELIMITER)+strlen(CONFIG_VALUE_ASSIGN_DELIMITER);
 			cfg_struct->time_out=atoi(val);
+			modules=false;
+		}
+
+		if (strstr(line, CONFIG_MODULES_PATH_STRING)!=NULL)
+		{
+			char *val=strstr(line, CONFIG_VALUE_ASSIGN_DELIMITER)+strlen(CONFIG_VALUE_ASSIGN_DELIMITER);
+			strcpy(cfg_struct->modules_path, val);
 			modules=false;
 		}
 
@@ -365,7 +372,9 @@ printf("tok: %s\n",tok);
 						cfg_struct->last_module->next_module=ms;
 					}
 
-					strncpy(ms->name, tok, CONFIG_MODULE_NAME_MAX);
+					strncpy(ms->name, CONFIG_MODULES_PATH_DEFAULT, CONFIG_MODULE_NAME_MAX);
+					strncat(ms->name, "/", CONFIG_MODULE_NAME_MAX);
+					strncat(ms->name, tok, CONFIG_MODULE_NAME_MAX);
 					cfg_struct->last_module=ms;
 					load_mconfig=true;
 				}

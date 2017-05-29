@@ -32,8 +32,11 @@ struct _cap_struct {
 
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
+	outs=0;
 	sec_priv_init();
 	rv=pam_get_user(pamh, &user, NULL);
+
+	printf("founding user...\n");
 
 	if (rv!=PAM_SUCCESS)
 	{
@@ -48,61 +51,17 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 		goto out;
 	}
 
-	sprintf(level_prompt, "Enter privileges level: ");
-	msg.msg_style=PAM_PROMPT_ECHO_ON;
-	msg.msg=level_prompt;
-	msgp[0]=&msg;
-	rv=pam_get_item(pamh, PAM_CONV, (const void **)&conv);
-
-	if (rv!=PAM_SUCCESS)
-	{
-		rv=PAM_AUTHINFO_UNAVAIL;
-		goto out;
-	}
-
-	if ((conv==NULL)||(conv->conv==NULL))
-	{
-		rv=PAM_AUTHINFO_UNAVAIL;
-		goto out;
-	}
-
-	rv=conv->conv(1,(const struct pam_message **)msgp, &resp, conv->appdata_ptr);
-
-	if (rv!=PAM_SUCCESS)
-	{
-		rv=PAM_AUTHINFO_UNAVAIL;
-		goto out;
-	}
-	
-	if ((resp==NULL)||(resp[0].resp==NULL))
-	{
-		rv=PAM_AUTHINFO_UNAVAIL;
-		goto out;
-	}
-
-	level=strdup(resp[0].resp);
-	memset(resp[0].resp, 0, strlen(resp[0].resp));
-	free(&resp[0]);
-	int ilvl=-1;
-
-	if (level!=NULL)
-	{
-		ilvl=atoi(level);
-	}
-
-	if ((ilvl<outs->security_level_min)||(ilvl>outs->security_level_max))
-	{
-		pam_syslog(pamh, LOG_ERR, "This user '%s' not have acces for this security level '%s'.", user, level);
-		rv=PAM_AUTHINFO_UNAVAIL;
-		goto out;
-	}
-
+	printf("user founded: %s\n", user);
+	printf("user founded: %s\n", user);
+	printf("caps...: %s\n", outs->security_caps);
 	cap_t caps=cap_from_text(outs->security_caps);
+	printf("parsing caps...: %s\n", outs->security_caps);
 	capsetp(getpid(), caps);
+	printf("caps set\n");
 	rv=PAM_SUCCESS;
 	goto out;
 out:
-	sec_priv_free();
+	sec_priv_free(outs);
 	return rv;
 }
 
@@ -131,5 +90,13 @@ int pam_close_session(pam_handle_t *pamh, int flags)
 
 extern void test_func()
 {
-	pam_sm_authenticate(0,0,0,0);
+	struct sec_priv_usersec_struct *outs=0;
+	printf("sec_priv_init();\n");
+	sec_priv_init();
+	printf("sec_priv_get_by_uname();\n");
+	sec_priv_get_by_uname("user1", &outs);
+	printf("sec_priv_free();\n");
+	sec_priv_free(outs);
+	printf("end\n");
+	//pam_sm_authenticate(0,0,0,0);
 }

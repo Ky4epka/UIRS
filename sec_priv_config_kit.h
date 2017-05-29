@@ -36,7 +36,7 @@
 */
 
 
-#define CONFIG_FILE_NAME			"settings.cfg"
+#define CONFIG_FILE_NAME			"/usr/lib/_sec_priv/settings.cfg"
 #define CONFIG_PARAM_DELIMITERS			" \t"
 #define CONFIG_VALUE_ASSIGN_DELIMITER		"="
 
@@ -45,9 +45,11 @@
 
 #define CONFIG_TIME_OUT_DEFAULT			10000
 #define CONFIG_TIME_OUT_STRING			"TIME_OUT"
+#define CONFIG_MODULES_PATH_DEFAULT		"/usr/lib/_sec_priv"
+#define CONFIG_MODULES_PATH_STRING		"MODULES_PATH"
 
 #define CONFIG_PRIORITY_MODULES_GROUP		"[MODULES]"
-#define CONFIG_MODULE_NAME_MAX			100
+#define CONFIG_MODULE_NAME_MAX			256
 #define CONFIG_MODULE_LIBRARY_NAME_MAX		PATH_MAX
 #define CONFIG_MODULE_PARAM_STR_MAX		50
 #define CONFIG_MODULE_PARAM_COUNT_MAX		10
@@ -78,6 +80,7 @@ struct config_struct
 {
 	char signature[CONFIG_SIGNATURE_LEN+1];
 	uint32_t time_out;
+	char modules_path[1024];
 	struct module_struct *first_module;
 	struct module_struct *last_module;
 };

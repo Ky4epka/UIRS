@@ -4,7 +4,7 @@
 
 struct sec_priv_usersec_struct *last_struct=NULL;
 
-bool enum_priority_list(const char *func_name, struct sec_priv_usersec_struct **outs, const void **params)
+bool enum_priority_list(const char *func_name, struct sec_priv_usersec_struct **outs, const void *params)
 {
 
 	if (cfg_struct==NULL)
@@ -74,7 +74,7 @@ bool enum_priority_list(const char *func_name, struct sec_priv_usersec_struct **
 			else
 			{
 				_DEBUGLOG("calling... '%s' %d %d", func_name, outs, params);
-				err_result=get_func(&outs, params);
+				err_result=get_func(outs, params);
 				_DEBUGLOG("end calling... '%s'", func_name);
 
 				if (le!=NULL)
@@ -98,7 +98,7 @@ bool enum_priority_list(const char *func_name, struct sec_priv_usersec_struct **
 			}
 			else
 			{
-				free_func(*params);
+				free_func(params);
 			}
 
 			dlclose(lib);

@@ -52,7 +52,7 @@ int main(int argc, char *argv[], char *envp[])
 
 	}
 
-	struct sec_priv_userpriv_struct *outs=NULL;
+	struct sec_priv_usersec_struct *outs=NULL;
 	sec_priv_init();
 
 	if ((uname==NULL)||(strlen(uname)==0))

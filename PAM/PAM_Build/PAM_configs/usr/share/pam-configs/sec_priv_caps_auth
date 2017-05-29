@@ -1,0 +1,6 @@
+Name: sec_priv_caps_auth
+Default: yes
+Priority: 800
+Auth-Type: Primary
+Auth:
+	requisite	libsec_priv_caps_auth.so
